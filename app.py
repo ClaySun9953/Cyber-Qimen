@@ -544,7 +544,7 @@ if not st.session_state['ceremony_started']:
         请点击屏幕左上角的 <b>></b> 箭头打开侧边栏输入信息
     </div>
     """, unsafe_allow_html=True)
-    st.info("👈 电脑用户请在左侧侧边栏输入【位置】、【姓名】和【所测之事】以开启仪式。")
+    st.info("👈 电脑用户请在左侧侧边栏输入【位置】、【姓名】和【所测之事】以开启仪式。每点击一次重复一遍问题")
     st.stop()
 
 # 2. 摇卦阶段
@@ -724,3 +724,4 @@ else:
         st.session_state['ceremony_started'] = False
         st.session_state['user_info'] = {}
         st.rerun()
+
