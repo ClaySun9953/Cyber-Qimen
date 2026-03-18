@@ -10,9 +10,9 @@ import email.utils
 import math
 
 # ==============================================================================
-# UI 层 (Streamlit) - V28.1 (BUG修复版)
+# UI 层 (Streamlit) - V28.1 
 # ==============================================================================
-st.set_page_config(page_title="赛博玄学 V28.1 (修复版)", layout="wide", page_icon="🧿")
+st.set_page_config(page_title="赛博玄学 V28.1 ", layout="wide", page_icon="🧿")
 
 # 注入安卓兼容补丁
 components.html("""
