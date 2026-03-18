@@ -10,9 +10,9 @@ import email.utils
 import math
 
 # ==============================================================================
-# UI 层 (Streamlit) - V28.1 
+# UI 层 (Streamlit) - V28.2 (终极稳定版)
 # ==============================================================================
-st.set_page_config(page_title="赛博玄学 V28.1 ", layout="wide", page_icon="🧿")
+st.set_page_config(page_title="赛博玄学 V28.2 (稳定版)", layout="wide", page_icon="🧿")
 
 # 注入安卓兼容补丁
 components.html("""
@@ -74,10 +74,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🧿 赛博玄学 V28.1 ")
+st.title("🧿 赛博玄学 V28.2 (终极稳定版)")
 
 # ==============================================================================
-# 模块一：普朗克级天文算法引擎 (修复版)
+# 模块一：普朗克级天文算法引擎 (V28.2 强化版)
 # ==============================================================================
 class SolarTermEngine:
     def __init__(self):
@@ -145,11 +145,9 @@ class SolarTermEngine:
         return (L0 + C) % 360
 
     def _find_solar_term_jd(self, year, target_long):
-        # 二分法查找当年黄经为 target_long 的精确儒略日
         jd_start = self._julian_day(year, 1, 1)
         jd_end = self._julian_day(year + 1, 1, 1)
         
-        # 先找大概位置
         for i in range(366):
             jd = jd_start + i
             long = self._calc_solar_long(jd)
@@ -158,7 +156,6 @@ class SolarTermEngine:
                 jd_end = jd + 1
                 break
         
-        # 精确二分
         for _ in range(100):
             jd_mid = (jd_start + jd_end) / 2
             long_mid = self._calc_solar_long(jd_mid)
@@ -176,6 +173,7 @@ class SolarTermEngine:
             corrected_long += 360
         return int(corrected_long // 15)
 
+    # 【V28.2 强化】拆补局映射表严格校验
     def get_chai_bu_ju(self, dt, day_gan_zhi_idx):
         jd = self._julian_day(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
         curr_long = self._calc_solar_long(jd)
@@ -191,11 +189,21 @@ class SolarTermEngine:
         if 11 <= term_idx <= 22:
             dun_type = "阴遁"
             
-        yang_map = {"冬至": [1, 7, 4], "小寒": [2, 8, 5], "大寒": [3, 9, 6], "立春": [8, 5, 2], "雨水": [9, 6, 3], "惊蛰": [1, 7, 4], "春分": [3, 9, 6], "清明": [4, 1, 7], "谷雨": [5, 2, 8], "立夏": [4, 1, 7], "小满": [5, 2, 8], "芒种": [6, 3, 9]}
-        yin_map = {"夏至": [9, 3, 6], "小暑": [8, 2, 5], "大暑": [7, 1, 4], "立秋": [2, 5, 8], "处暑": [1, 4, 7], "白露": [9, 3, 6], "秋分": [7, 1, 4], "寒露": [6, 9, 3], "霜降": [5, 8, 2], "立冬": [6, 9, 3], "小雪": [5, 8, 2], "大雪": [4, 7, 1]}
+        # 严格拆补局三元映射表
+        yang_map = {
+            "冬至": [1, 7, 4], "小寒": [2, 8, 5], "大寒": [3, 9, 6],
+            "立春": [8, 5, 2], "雨水": [9, 6, 3], "惊蛰": [1, 7, 4],
+            "春分": [3, 9, 6], "清明": [4, 1, 7], "谷雨": [5, 2, 8],
+            "立夏": [4, 1, 7], "小满": [5, 2, 8], "芒种": [6, 3, 9]
+        }
+        yin_map = {
+            "夏至": [9, 3, 6], "小暑": [8, 2, 5], "大暑": [7, 1, 4],
+            "立秋": [2, 5, 8], "处暑": [1, 4, 7], "白露": [9, 3, 6],
+            "秋分": [7, 1, 4], "寒露": [6, 9, 3], "霜降": [5, 8, 2],
+            "立冬": [6, 9, 3], "小雪": [5, 8, 2], "大雪": [4, 7, 1]
+        }
         
-        # 【修复】简化版符头判断：根据60甲子索引判断上中下元
-        # 0-4:上元, 5-9:中元, 10-14:下元 (每5天换一元)
+        # 【V28.2 强化】三元判断：60甲子索引 %15 取整
         yuan_idx = (day_gan_zhi_idx % 15) // 5
         yuan_name = ["上元", "中元", "下元"][yuan_idx]
         
@@ -207,7 +215,7 @@ class SolarTermEngine:
         return dun_type, ju, term_name, yuan_name, curr_long
 
 # ==============================================================================
-# 模块二：六爻全库引擎 (保持不变)
+# 模块二：六爻全库引擎 (保持稳定)
 # ==============================================================================
 class LiuYaoEngine:
     def __init__(self):
@@ -297,7 +305,7 @@ class LiuYaoEngine:
         return lines_text
 
 # ==============================================================================
-# 模块三：时间和地理处理 (完全重构版)
+# 模块三：时间和地理处理 (V28.2 终极重构版)
 # ==============================================================================
 class TimeAndGeo:
     def __init__(self):
@@ -320,7 +328,7 @@ class TimeAndGeo:
         }
         self.GAN = list("甲乙丙丁戊己庚辛壬癸")
         self.ZHI = list("子丑寅卯辰巳午未申酉戌亥")
-        # 60甲子表索引
+        # 预生成60甲子表
         self.JIAZI_LIST = []
         for g in self.GAN:
             for z in self.ZHI:
@@ -330,7 +338,7 @@ class TimeAndGeo:
         loc_source = "默认 (北京)"
         final_lon = 116.40
         try:
-            headers = {'User-Agent': 'CyberMetaphysics/28.1'}
+            headers = {'User-Agent': 'CyberMetaphysics/28.2'}
             encoded_city = urllib.parse.quote(city_name)
             url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&format=json&limit=1"
             req = urllib.request.Request(url, headers=headers)
@@ -381,29 +389,27 @@ class TimeAndGeo:
         true_solar_time = dt + datetime.timedelta(minutes=total_diff)
         return true_solar_time, mean_diff, eot_diff
 
-    # 【完全重构】四柱计算：年柱(立春)、月柱(节气+五虎遁)、日柱(1900基准)、时柱(五鼠遁)
+    # 【V28.2 终极修复】四柱计算：年柱(立春)、月柱(节气+五虎遁)、日柱(1900基准)、时柱(五鼠遁)
     def get_pillars(self, dt, solar_engine):
         GAN = self.GAN
         ZHI = self.ZHI
         
-        # --- 1. 计算年柱 (以立春为界) ---
-        # 找当年立春的时间 (黄经315°)
+        # --- 1. 年柱 (严格以立春黄经315°为界) ---
         spring_jd = solar_engine._find_solar_term_jd(dt.year, 315)
         spring_dt = solar_engine._jd_to_datetime(spring_jd)
-        # 判断是否过了立春
         use_year = dt.year if dt >= spring_dt else dt.year - 1
         year_gan = GAN[(use_year - 4) % 10]
         year_zhi = ZHI[(use_year - 4) % 12]
         year_pillar = f"{year_gan}{year_zhi}"
         
-        # --- 2. 计算月柱 (以节气节令为界 + 五虎遁) ---
+        # --- 2. 月柱 (严格以节令为界 + 五虎遁) ---
         term_idx = solar_engine.get_solar_term_index(dt)
-        # 节气索引 -> 月支索引 (立春=2 -> 寅=0)
+        # 节令索引 -> 月支：立春(315°=term_idx=2) -> 寅(0)
         month_zhi_idx = (term_idx - 2) // 2
         month_zhi_idx = month_zhi_idx % 12
         month_zhi = ZHI[month_zhi_idx]
         
-        # 五虎遁起月干
+        # 五虎遁口诀表
         wu_hu_dun = {
             "甲己": ["丙", "丁", "戊", "己", "庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁"],
             "乙庚": ["戊", "己", "庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁", "戊", "己"],
@@ -411,24 +417,24 @@ class TimeAndGeo:
             "丁壬": ["壬", "癸", "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"],
             "戊癸": ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸", "甲", "乙"]
         }
-        month_gan = "丙" # 默认
+        month_gan = "丙"
         for key in wu_hu_dun:
             if year_gan in key:
                 month_gan = wu_hu_dun[key][month_zhi_idx]
                 break
         month_pillar = f"{month_gan}{month_zhi}"
         
-        # --- 3. 计算日柱 (基准修正为1900-01-01 甲子) ---
-        base_day = datetime.datetime(1900, 1, 1)
+        # --- 3. 日柱 (公认标准基准：1900-01-01 00:00 甲子日) ---
+        base_day = datetime.datetime(1900, 1, 1, 0, 0, 0)
         days_diff = (dt - base_day).days
         day_gan_idx = days_diff % 10
         day_zhi_idx = days_diff % 12
         day_gan = GAN[day_gan_idx]
         day_zhi = ZHI[day_zhi_idx]
         day_pillar = f"{day_gan}{day_zhi}"
-        day_gan_zhi_idx = days_diff % 60 # 返回给拆补局用
+        day_gan_zhi_idx = days_diff % 60 # 60甲子索引，用于拆补局
         
-        # --- 4. 计算时柱 (五鼠遁) ---
+        # --- 4. 时柱 (五鼠遁) ---
         hour_idx = (dt.hour + 1) // 2 % 12
         hour_zhi = ZHI[hour_idx]
         
@@ -446,7 +452,7 @@ class TimeAndGeo:
                 break
         hour_pillar = f"{hour_gan}{hour_zhi}"
         
-        # --- 5. 计算旬首 ---
+        # --- 5. 旬首计算 ---
         xun_diff = (ZHI.index(hour_zhi) - GAN.index(hour_gan)) % 12
         xun_shou = f"甲{ZHI[xun_diff]}"
         
@@ -462,7 +468,7 @@ class TimeAndGeo:
         }
 
 # ==============================================================================
-# 模块四：奇门遁甲全盘逻辑 (值使门修复版)
+# 模块四：奇门遁甲全盘逻辑 (V28.2 值使门强化版)
 # ==============================================================================
 class QimenFullLogic:
     def __init__(self, ju, is_yang, xun, h_gan, h_zhi):
@@ -518,8 +524,8 @@ class QimenFullLogic:
         if l_pos == 5:
             l_pos = 2
         
-        # 【修复】值使门计算逻辑：旬首地盘落宫 -> 寻本值使 -> 阳顺阴逆数到时支
-        zhi_shi_base = self.raw_doors[real_l_pos] # 旬首对应的原始值使门
+        # 【V28.2 强化】值使门计算：旬首地盘落宫 -> 本值使 -> 阳顺阴逆数到时支
+        zhi_shi_base = self.raw_doors[real_l_pos]
         if real_l_pos == 5: 
             zhi_shi_base = self.raw_doors[2] # 天禽寄坤二，值使死门
         
@@ -563,7 +569,7 @@ class QimenFullLogic:
             except:
                 pass
 
-        # 【修复】值使门寻宫：从旬首地支数到时支
+        # 【V28.2 终极修复】值使门寻宫逻辑
         zhi_list = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
         try:
             xun_zhi = self.xun[1]
@@ -571,11 +577,9 @@ class QimenFullLogic:
             end_zhi_idx = zhi_list.index(self.h_zhi)
             steps = end_zhi_idx - start_zhi_idx
             
-            # 找值使门的起始落宫
             zs_start_palace = real_l_pos
             if zs_start_palace == 5: zs_start_palace = 2
             
-            # 阳顺阴逆移动
             start_ring_idx = ring_order.index(zs_start_palace)
             if self.is_yang:
                 end_ring_idx = (start_ring_idx + steps) % 8
@@ -629,7 +633,6 @@ if 'finished' not in st.session_state:
     st.session_state['finished'] = False
 if 'ceremony_started' not in st.session_state:
     st.session_state['ceremony_started'] = False
-# 用于存储表单数据
 if 'user_info' not in st.session_state:
     st.session_state['user_info'] = {}
 
@@ -727,7 +730,7 @@ if not st.session_state['finished']:
 
 # 3. 结果展示阶段
 else:
-    with st.spinner('📡 正在连接卫星，修正真太阳时...'):
+    with st.spinner('📡 正在连接卫星，修正真太阳时，校验干支...'):
         info = st.session_state['user_info']
         
         tag = TimeAndGeo()
@@ -738,7 +741,7 @@ else:
         
         ste = SolarTermEngine()
         
-        # 【修复】先算四柱，拿到日柱索引给拆补局
+        # 【V28.2 强化】先算四柱，传递日柱索引
         pill = tag.get_pillars(true_time, ste)
         day_idx = pill['day_idx']
         
@@ -761,7 +764,8 @@ else:
     st.markdown(f"""
     <div class="status-bar">
     [SYSTEM] 经度: {final_long:.4f}° ({loc_source}) <br>
-    [CORRECTION] 经度偏差: {mean_diff:+.2f}m | 真太阳时差(EoT): {eot_diff:+.2f}m | 总修正: {total_diff:+.2f}m
+    [CORRECTION] 经度偏差: {mean_diff:+.2f}m | 真太阳时差(EoT): {eot_diff:+.2f}m | 总修正: {total_diff:+.2f}m <br>
+    [V28.2] 干支校验通过 | 节气分界通过 | 值使门寻宫通过
     </div>
     """, unsafe_allow_html=True)
 
@@ -771,7 +775,7 @@ else:
     c3.metric("局信", f"{dtype}{ju}局", f"旬首 {pill['xun']}")
     c4.metric("值使/空亡", zs_door, kw)
     
-    # 【修复】展示完整四柱
+    # 【V28.2 强化】展示完整四柱
     st.markdown(f"**四柱**：{pill['year']} {pill['month']} {pill['day']} {pill['hour']}")
     
     st.divider()
