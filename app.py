@@ -10,12 +10,9 @@ import email.utils
 import math
 
 # ==============================================================================
-# UI 层 (Streamlit) - V28.0
-# 1. 引入 st.form 解决输入不生效的问题
-# 2. 注入 JS 补丁修复安卓兼容性
-# 3. 代码完全解压，单行单写
+# UI 层 (Streamlit) - V28.1 (BUG修复版)
 # ==============================================================================
-st.set_page_config(page_title="赛博玄学 V28.0", layout="wide", page_icon="🧿")
+st.set_page_config(page_title="赛博玄学 V28.1 (修复版)", layout="wide", page_icon="🧿")
 
 # 注入安卓兼容补丁
 components.html("""
@@ -77,10 +74,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🧿 赛博玄学 V28.0")
+st.title("🧿 赛博玄学 V28.1 (核心BUG修复版)")
 
 # ==============================================================================
-# 模块一：普朗克级天文算法引擎
+# 模块一：普朗克级天文算法引擎 (修复版)
 # ==============================================================================
 class SolarTermEngine:
     def __init__(self):
@@ -90,6 +87,8 @@ class SolarTermEngine:
             "小暑", "大暑", "立秋", "处暑", "白露", "秋分", 
             "寒露", "霜降", "立冬", "小雪", "大雪", "冬至"
         ]
+        self.GAN = list("甲乙丙丁戊己庚辛壬癸")
+        self.ZHI = list("子丑寅卯辰巳午未申酉戌亥")
         
     def _julian_day(self, year, month, day, hour=12, minute=0, second=0, micro=0):
         if month <= 2:
@@ -104,6 +103,35 @@ class SolarTermEngine:
         JD = int(365.25 * (year + 4716)) + int(30.6001 * (month + 1)) + dd + B - 1524.5
         return JD
 
+    def _jd_to_datetime(self, jd):
+        jd = jd + 0.5
+        Z = int(jd)
+        F = jd - Z
+        if Z < 2299161:
+            A = Z
+        else:
+            alpha = int((Z - 1867216.25) / 36524.25)
+            A = Z + 1 + alpha - int(alpha / 4)
+        B = A + 1524
+        C = int((B - 122.1) / 365.25)
+        D = int(365.25 * C)
+        E = int((B - D) / 30.6001)
+        day = B - D - int(30.6001 * E)
+        if E < 14:
+            month = E - 1
+        else:
+            month = E - 13
+        if month > 2:
+            year = C - 4716
+        else:
+            year = C - 4715
+        day_frac = F * 24
+        hour = int(day_frac)
+        minute_frac = (day_frac - hour) * 60
+        minute = int(minute_frac)
+        second = int((minute_frac - minute) * 60)
+        return datetime.datetime(year, month, day, hour, minute, second)
+
     def _calc_solar_long(self, jd):
         T = (jd - 2451545.0) / 36525.0
         L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T
@@ -116,7 +144,39 @@ class SolarTermEngine:
         C = term1 + term2 + term3
         return (L0 + C) % 360
 
-    def get_chai_bu_ju(self, dt):
+    def _find_solar_term_jd(self, year, target_long):
+        # 二分法查找当年黄经为 target_long 的精确儒略日
+        jd_start = self._julian_day(year, 1, 1)
+        jd_end = self._julian_day(year + 1, 1, 1)
+        
+        # 先找大概位置
+        for i in range(366):
+            jd = jd_start + i
+            long = self._calc_solar_long(jd)
+            if (target_long - 1) < long < (target_long + 1):
+                jd_start = jd - 1
+                jd_end = jd + 1
+                break
+        
+        # 精确二分
+        for _ in range(100):
+            jd_mid = (jd_start + jd_end) / 2
+            long_mid = self._calc_solar_long(jd_mid)
+            if long_mid < target_long:
+                jd_start = jd_mid
+            else:
+                jd_end = jd_mid
+        return (jd_start + jd_end) / 2
+
+    def get_solar_term_index(self, dt):
+        jd = self._julian_day(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
+        curr_long = self._calc_solar_long(jd)
+        corrected_long = (curr_long - 285) 
+        if corrected_long < 0:
+            corrected_long += 360
+        return int(corrected_long // 15)
+
+    def get_chai_bu_ju(self, dt, day_gan_zhi_idx):
         jd = self._julian_day(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
         curr_long = self._calc_solar_long(jd)
         
@@ -134,9 +194,9 @@ class SolarTermEngine:
         yang_map = {"冬至": [1, 7, 4], "小寒": [2, 8, 5], "大寒": [3, 9, 6], "立春": [8, 5, 2], "雨水": [9, 6, 3], "惊蛰": [1, 7, 4], "春分": [3, 9, 6], "清明": [4, 1, 7], "谷雨": [5, 2, 8], "立夏": [4, 1, 7], "小满": [5, 2, 8], "芒种": [6, 3, 9]}
         yin_map = {"夏至": [9, 3, 6], "小暑": [8, 2, 5], "大暑": [7, 1, 4], "立秋": [2, 5, 8], "处暑": [1, 4, 7], "白露": [9, 3, 6], "秋分": [7, 1, 4], "寒露": [6, 9, 3], "霜降": [5, 8, 2], "立冬": [6, 9, 3], "小雪": [5, 8, 2], "大雪": [4, 7, 1]}
         
-        base = datetime.datetime(2000, 1, 1)
-        delta = (dt - base).days + 24
-        yuan_idx = (delta % 15) // 5 
+        # 【修复】简化版符头判断：根据60甲子索引判断上中下元
+        # 0-4:上元, 5-9:中元, 10-14:下元 (每5天换一元)
+        yuan_idx = (day_gan_zhi_idx % 15) // 5
         yuan_name = ["上元", "中元", "下元"][yuan_idx]
         
         if dun_type == "阳遁":
@@ -147,7 +207,7 @@ class SolarTermEngine:
         return dun_type, ju, term_name, yuan_name, curr_long
 
 # ==============================================================================
-# 模块二：六爻全库引擎 (完全解压，防止报错)
+# 模块二：六爻全库引擎 (保持不变)
 # ==============================================================================
 class LiuYaoEngine:
     def __init__(self):
@@ -237,7 +297,7 @@ class LiuYaoEngine:
         return lines_text
 
 # ==============================================================================
-# 模块三：时间和地理处理
+# 模块三：时间和地理处理 (完全重构版)
 # ==============================================================================
 class TimeAndGeo:
     def __init__(self):
@@ -258,12 +318,19 @@ class TimeAndGeo:
             "西宁": 101.78, "银川": 106.23, "乌鲁木齐": 87.62, "香港": 114.17, 
             "澳门": 113.54, "台北": 121.50, "高雄": 120.31
         }
+        self.GAN = list("甲乙丙丁戊己庚辛壬癸")
+        self.ZHI = list("子丑寅卯辰巳午未申酉戌亥")
+        # 60甲子表索引
+        self.JIAZI_LIST = []
+        for g in self.GAN:
+            for z in self.ZHI:
+                self.JIAZI_LIST.append(f"{g}{z}")
 
     def get_city_long_smart(self, city_name):
         loc_source = "默认 (北京)"
         final_lon = 116.40
         try:
-            headers = {'User-Agent': 'CyberMetaphysics/28.0'}
+            headers = {'User-Agent': 'CyberMetaphysics/28.1'}
             encoded_city = urllib.parse.quote(city_name)
             url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&format=json&limit=1"
             req = urllib.request.Request(url, headers=headers)
@@ -314,33 +381,88 @@ class TimeAndGeo:
         true_solar_time = dt + datetime.timedelta(minutes=total_diff)
         return true_solar_time, mean_diff, eot_diff
 
-    def get_pillars(self, dt):
-        base = datetime.datetime(2000, 1, 1)
-        days_diff = (dt - base).days
-        GAN = list("甲乙丙丁戊己庚辛壬癸")
-        ZHI = list("子丑寅卯辰巳午未申酉戌亥")
-        day_gan = GAN[(days_diff + 24) % 60 % 10]
-        day_zhi = ZHI[(days_diff + 24) % 60 % 12]
+    # 【完全重构】四柱计算：年柱(立春)、月柱(节气+五虎遁)、日柱(1900基准)、时柱(五鼠遁)
+    def get_pillars(self, dt, solar_engine):
+        GAN = self.GAN
+        ZHI = self.ZHI
+        
+        # --- 1. 计算年柱 (以立春为界) ---
+        # 找当年立春的时间 (黄经315°)
+        spring_jd = solar_engine._find_solar_term_jd(dt.year, 315)
+        spring_dt = solar_engine._jd_to_datetime(spring_jd)
+        # 判断是否过了立春
+        use_year = dt.year if dt >= spring_dt else dt.year - 1
+        year_gan = GAN[(use_year - 4) % 10]
+        year_zhi = ZHI[(use_year - 4) % 12]
+        year_pillar = f"{year_gan}{year_zhi}"
+        
+        # --- 2. 计算月柱 (以节气节令为界 + 五虎遁) ---
+        term_idx = solar_engine.get_solar_term_index(dt)
+        # 节气索引 -> 月支索引 (立春=2 -> 寅=0)
+        month_zhi_idx = (term_idx - 2) // 2
+        month_zhi_idx = month_zhi_idx % 12
+        month_zhi = ZHI[month_zhi_idx]
+        
+        # 五虎遁起月干
+        wu_hu_dun = {
+            "甲己": ["丙", "丁", "戊", "己", "庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁"],
+            "乙庚": ["戊", "己", "庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁", "戊", "己"],
+            "丙辛": ["庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛"],
+            "丁壬": ["壬", "癸", "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"],
+            "戊癸": ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸", "甲", "乙"]
+        }
+        month_gan = "丙" # 默认
+        for key in wu_hu_dun:
+            if year_gan in key:
+                month_gan = wu_hu_dun[key][month_zhi_idx]
+                break
+        month_pillar = f"{month_gan}{month_zhi}"
+        
+        # --- 3. 计算日柱 (基准修正为1900-01-01 甲子) ---
+        base_day = datetime.datetime(1900, 1, 1)
+        days_diff = (dt - base_day).days
+        day_gan_idx = days_diff % 10
+        day_zhi_idx = days_diff % 12
+        day_gan = GAN[day_gan_idx]
+        day_zhi = ZHI[day_zhi_idx]
+        day_pillar = f"{day_gan}{day_zhi}"
+        day_gan_zhi_idx = days_diff % 60 # 返回给拆补局用
+        
+        # --- 4. 计算时柱 (五鼠遁) ---
         hour_idx = (dt.hour + 1) // 2 % 12
         hour_zhi = ZHI[hour_idx]
-        hour_gan_idx = ((GAN.index(day_gan) % 5) * 2 + hour_idx) % 10
-        hour_gan = GAN[hour_gan_idx]
+        
+        wu_shu_dun = {
+            "甲己": ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸", "甲", "乙"],
+            "乙庚": ["丙", "丁", "戊", "己", "庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁"],
+            "丙辛": ["戊", "己", "庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁", "戊", "己"],
+            "丁壬": ["庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛"],
+            "戊癸": ["壬", "癸", "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]
+        }
+        hour_gan = "甲"
+        for key in wu_shu_dun:
+            if day_gan in key:
+                hour_gan = wu_shu_dun[key][hour_idx]
+                break
+        hour_pillar = f"{hour_gan}{hour_zhi}"
+        
+        # --- 5. 计算旬首 ---
         xun_diff = (ZHI.index(hour_zhi) - GAN.index(hour_gan)) % 12
         xun_shou = f"甲{ZHI[xun_diff]}"
-        year_gan = GAN[(dt.year - 4) % 10]
-        year_zhi = ZHI[(dt.year - 4) % 12]
         
         return {
-            "year": f"{year_gan}{year_zhi}", 
-            "day": f"{day_gan}{day_zhi}", 
-            "hour": f"{hour_gan}{hour_zhi}", 
+            "year": year_pillar, 
+            "month": month_pillar,
+            "day": day_pillar, 
+            "hour": hour_pillar, 
             "xun": xun_shou, 
             "h_gan": hour_gan, 
-            "h_zhi": hour_zhi
+            "h_zhi": hour_zhi,
+            "day_idx": day_gan_zhi_idx
         }
 
 # ==============================================================================
-# 模块四：奇门遁甲全盘逻辑 (转盘法，无 BUG)
+# 模块四：奇门遁甲全盘逻辑 (值使门修复版)
 # ==============================================================================
 class QimenFullLogic:
     def __init__(self, ju, is_yang, xun, h_gan, h_zhi):
@@ -358,6 +480,8 @@ class QimenFullLogic:
         
         self.raw_stars = ["","天蓬","天芮","天冲","天辅","天禽","天心","天柱","天任","天英"]
         self.raw_doors = ["","休门","死门","伤门","杜门","","开门","惊门","生门","景门"]
+        self.GAN = list("甲乙丙丁戊己庚辛壬癸")
+        self.ZHI = list("子丑寅卯辰巳午未申酉戌亥")
 
     def get_kong_wang(self):
         kw_map = {
@@ -394,10 +518,10 @@ class QimenFullLogic:
         if l_pos == 5:
             l_pos = 2
         
-        zs_pos_raw = real_l_pos
-        if zs_pos_raw == 5:
-            zs_pos_raw = 2
-        zhi_shi_door = self.raw_doors[zs_pos_raw]
+        # 【修复】值使门计算逻辑：旬首地盘落宫 -> 寻本值使 -> 阳顺阴逆数到时支
+        zhi_shi_base = self.raw_doors[real_l_pos] # 旬首对应的原始值使门
+        if real_l_pos == 5: 
+            zhi_shi_base = self.raw_doors[2] # 天禽寄坤二，值使死门
         
         ring_order = [1, 8, 3, 4, 9, 2, 7, 6]
         
@@ -439,23 +563,35 @@ class QimenFullLogic:
             except:
                 pass
 
-        zhis = list("子丑寅卯辰巳午未申酉戌亥")
-        steps = zhis.index(self.h_zhi) - zhis.index(self.xun[1])
-        
-        if self.is_yang:
-            door_dest_pos = zs_pos_raw + steps
-        else:
-            door_dest_pos = zs_pos_raw - steps
-            
-        while door_dest_pos > 9: door_dest_pos -= 9
-        while door_dest_pos <= 0: door_dest_pos += 9
-        if door_dest_pos == 5: door_dest_pos = 2
-        
-        door_sequence = ["休门", "生门", "伤门", "杜门", "景门", "死门", "惊门", "开门"]
-        
+        # 【修复】值使门寻宫：从旬首地支数到时支
+        zhi_list = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
         try:
-            zs_seq_idx = door_sequence.index(zhi_shi_door)
-            dest_ring_idx = ring_order.index(door_dest_pos)
+            xun_zhi = self.xun[1]
+            start_zhi_idx = zhi_list.index(xun_zhi)
+            end_zhi_idx = zhi_list.index(self.h_zhi)
+            steps = end_zhi_idx - start_zhi_idx
+            
+            # 找值使门的起始落宫
+            zs_start_palace = real_l_pos
+            if zs_start_palace == 5: zs_start_palace = 2
+            
+            # 阳顺阴逆移动
+            start_ring_idx = ring_order.index(zs_start_palace)
+            if self.is_yang:
+                end_ring_idx = (start_ring_idx + steps) % 8
+            else:
+                end_ring_idx = (start_ring_idx - steps) % 8
+            zhi_shi_palace = ring_order[end_ring_idx]
+            
+        except Exception as e:
+            zhi_shi_palace = real_l_pos if real_l_pos !=5 else 2
+            zhi_shi_base = "惊门"
+        
+        # 排布八门
+        door_sequence = ["休门", "生门", "伤门", "杜门", "景门", "死门", "惊门", "开门"]
+        try:
+            zs_seq_idx = door_sequence.index(zhi_shi_base)
+            dest_ring_idx = ring_order.index(zhi_shi_palace)
             
             for k in range(8):
                 door_name = door_sequence[(zs_seq_idx + k) % 8]
@@ -481,7 +617,7 @@ class QimenFullLogic:
             pass
         
         layout[5]["di"] = di_pan[5]
-        return layout, zhi_shi_door
+        return layout, zhi_shi_base
 
 # ==============================================================================
 # UI 主逻辑
@@ -497,11 +633,10 @@ if 'ceremony_started' not in st.session_state:
 if 'user_info' not in st.session_state:
     st.session_state['user_info'] = {}
 
-# --- 侧边栏逻辑 (改为 Form 提交) ---
+# --- 侧边栏逻辑 ---
 with st.sidebar:
     st.header("🔮 定场录入")
     
-    # 【改动】使用 st.form 包裹，强制提交，解决输入不生效问题
     with st.form("entry_form"):
         city_input = st.text_input("📍 当前位置 (城市)", placeholder="请输入城市，如：哈尔滨", help="卫星/本地全量库双模定位")
         name = st.text_input("👤 求测姓名", placeholder="请输入姓名")
@@ -509,7 +644,6 @@ with st.sidebar:
         
         st.markdown("---")
         
-        # 提交按钮
         submitted = st.form_submit_button("🔵 开启排盘仪式", type="primary")
         
         if submitted:
@@ -517,7 +651,6 @@ with st.sidebar:
                 st.session_state['ceremony_started'] = True
                 st.session_state['yao_list'] = []
                 st.session_state['finished'] = False
-                # 保存数据
                 st.session_state['user_info'] = {
                     "city": city_input,
                     "name": name,
@@ -595,7 +728,6 @@ if not st.session_state['finished']:
 # 3. 结果展示阶段
 else:
     with st.spinner('📡 正在连接卫星，修正真太阳时...'):
-        # 从 session 读取信息
         info = st.session_state['user_info']
         
         tag = TimeAndGeo()
@@ -605,10 +737,14 @@ else:
         true_time, mean_diff, eot_diff = tag.get_true_solar(net_time, final_long)
         
         ste = SolarTermEngine()
-        dtype, ju, term, yuan, slong = ste.get_chai_bu_ju(true_time)
+        
+        # 【修复】先算四柱，拿到日柱索引给拆补局
+        pill = tag.get_pillars(true_time, ste)
+        day_idx = pill['day_idx']
+        
+        dtype, ju, term, yuan, slong = ste.get_chai_bu_ju(true_time, day_idx)
         is_yang = (dtype == "阳遁")
         
-        pill = tag.get_pillars(true_time)
         qimen = QimenFullLogic(ju, is_yang, pill['xun'], pill['h_gan'], pill['h_zhi'])
         layout, zs_door = qimen.calculate()
         kw = qimen.get_kong_wang()
@@ -617,7 +753,6 @@ else:
         lye = LiuYaoEngine()
         gua_data = lye.process(st.session_state['yao_list'])
         
-        # 获取竖排六爻文本
         gua_text_visual = lye.get_gua_text(gua_data)
         
         time.sleep(0.5)
@@ -635,7 +770,9 @@ else:
     c2.metric("节气", f"{term} ({yuan})", f"黄经 {slong:.2f}°")
     c3.metric("局信", f"{dtype}{ju}局", f"旬首 {pill['xun']}")
     c4.metric("值使/空亡", zs_door, kw)
-    st.markdown(f"**四柱**：{pill['year']} {pill['day']} {pill['hour']}")
+    
+    # 【修复】展示完整四柱
+    st.markdown(f"**四柱**：{pill['year']} {pill['month']} {pill['day']} {pill['hour']}")
     
     st.divider()
 
@@ -695,12 +832,11 @@ else:
 
     st.divider()
     
-    # 构造最终数据包
     raw_data = f"""
 【问测】 {info['ask']}
-【定场】 {info['name']} @ {info['city']} (经度:{final_long})
+【定场】 {info['name']} @ {info['city']} (经度:{final_long:.4f})
 【时间】 {true_time.strftime('%Y-%m-%d %H:%M:%S')} (真太阳时 | 修正:{total_diff:.2f}m)
-【四柱】 {pill['year']} {pill['day']} {pill['hour']} (旬首:{pill['xun']})
+【四柱】 {pill['year']} {pill['month']} {pill['day']} {pill['hour']} (旬首:{pill['xun']})
 【奇门】 {term} {dtype}{ju}局 | 空亡:{kw} | 马星:{ma} | 值使:{zs_door}
 
 【六爻】 本:{gua_data['ben_name']} 变:{gua_data['bian_name']} 动:{gua_data['moving_lines']}
@@ -724,4 +860,3 @@ else:
         st.session_state['ceremony_started'] = False
         st.session_state['user_info'] = {}
         st.rerun()
-
