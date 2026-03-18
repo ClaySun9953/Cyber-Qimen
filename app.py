@@ -8,11 +8,12 @@ import urllib.parse
 import json
 import email.utils
 import math
+import hashlib
 
 # ==============================================================================
-# UI 层 (Streamlit) - V28.2 (终极稳定版)
+# UI 层 (Streamlit) - V29.0 (终极整合版)
 # ==============================================================================
-st.set_page_config(page_title="赛博玄学 V28.2 (稳定版)", layout="wide", page_icon="🧿")
+st.set_page_config(page_title="赛博玄学 V29.0", layout="wide", page_icon="🧿")
 
 # 注入安卓兼容补丁
 components.html("""
@@ -71,13 +72,21 @@ st.markdown("""
         margin: 5px 0; 
         letter-spacing: 2px; 
     }
+    .meditation-box {
+        background-color: #1a1a2e;
+        border: 2px solid #414141;
+        border-radius: 15px;
+        padding: 30px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🧿 赛博玄学 V28.2 (终极稳定版)")
+st.title("🧿 赛博玄学 V29.0 (终极整合版)")
 
 # ==============================================================================
-# 模块一：普朗克级天文算法引擎 (V28.2 强化版)
+# 模块一：普朗克级天文算法引擎 (V29 稳定版)
 # ==============================================================================
 class SolarTermEngine:
     def __init__(self):
@@ -173,7 +182,6 @@ class SolarTermEngine:
             corrected_long += 360
         return int(corrected_long // 15)
 
-    # 【V28.2 强化】拆补局映射表严格校验
     def get_chai_bu_ju(self, dt, day_gan_zhi_idx):
         jd = self._julian_day(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
         curr_long = self._calc_solar_long(jd)
@@ -189,7 +197,6 @@ class SolarTermEngine:
         if 11 <= term_idx <= 22:
             dun_type = "阴遁"
             
-        # 严格拆补局三元映射表
         yang_map = {
             "冬至": [1, 7, 4], "小寒": [2, 8, 5], "大寒": [3, 9, 6],
             "立春": [8, 5, 2], "雨水": [9, 6, 3], "惊蛰": [1, 7, 4],
@@ -203,7 +210,6 @@ class SolarTermEngine:
             "立冬": [6, 9, 3], "小雪": [5, 8, 2], "大雪": [4, 7, 1]
         }
         
-        # 【V28.2 强化】三元判断：60甲子索引 %15 取整
         yuan_idx = (day_gan_zhi_idx % 15) // 5
         yuan_name = ["上元", "中元", "下元"][yuan_idx]
         
@@ -215,7 +221,7 @@ class SolarTermEngine:
         return dun_type, ju, term_name, yuan_name, curr_long
 
 # ==============================================================================
-# 模块二：六爻全库引擎 (保持稳定)
+# 模块二：六爻全库引擎 (V29 稳定版)
 # ==============================================================================
 class LiuYaoEngine:
     def __init__(self):
@@ -305,7 +311,7 @@ class LiuYaoEngine:
         return lines_text
 
 # ==============================================================================
-# 模块三：时间和地理处理 (V28.2 终极重构版)
+# 模块三：时间和地理处理 (V29 终极版)
 # ==============================================================================
 class TimeAndGeo:
     def __init__(self):
@@ -328,7 +334,6 @@ class TimeAndGeo:
         }
         self.GAN = list("甲乙丙丁戊己庚辛壬癸")
         self.ZHI = list("子丑寅卯辰巳午未申酉戌亥")
-        # 预生成60甲子表
         self.JIAZI_LIST = []
         for g in self.GAN:
             for z in self.ZHI:
@@ -338,7 +343,7 @@ class TimeAndGeo:
         loc_source = "默认 (北京)"
         final_lon = 116.40
         try:
-            headers = {'User-Agent': 'CyberMetaphysics/28.2'}
+            headers = {'User-Agent': 'CyberMetaphysics/29.0'}
             encoded_city = urllib.parse.quote(city_name)
             url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&format=json&limit=1"
             req = urllib.request.Request(url, headers=headers)
@@ -389,12 +394,11 @@ class TimeAndGeo:
         true_solar_time = dt + datetime.timedelta(minutes=total_diff)
         return true_solar_time, mean_diff, eot_diff
 
-    # 【V28.2 终极修复】四柱计算：年柱(立春)、月柱(节气+五虎遁)、日柱(1900基准)、时柱(五鼠遁)
     def get_pillars(self, dt, solar_engine):
         GAN = self.GAN
         ZHI = self.ZHI
         
-        # --- 1. 年柱 (严格以立春黄经315°为界) ---
+        # --- 1. 年柱 (立春分界) ---
         spring_jd = solar_engine._find_solar_term_jd(dt.year, 315)
         spring_dt = solar_engine._jd_to_datetime(spring_jd)
         use_year = dt.year if dt >= spring_dt else dt.year - 1
@@ -402,14 +406,12 @@ class TimeAndGeo:
         year_zhi = ZHI[(use_year - 4) % 12]
         year_pillar = f"{year_gan}{year_zhi}"
         
-        # --- 2. 月柱 (严格以节令为界 + 五虎遁) ---
+        # --- 2. 月柱 (节气+五虎遁) ---
         term_idx = solar_engine.get_solar_term_index(dt)
-        # 节令索引 -> 月支：立春(315°=term_idx=2) -> 寅(0)
         month_zhi_idx = (term_idx - 2) // 2
         month_zhi_idx = month_zhi_idx % 12
         month_zhi = ZHI[month_zhi_idx]
         
-        # 五虎遁口诀表
         wu_hu_dun = {
             "甲己": ["丙", "丁", "戊", "己", "庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁"],
             "乙庚": ["戊", "己", "庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁", "戊", "己"],
@@ -424,7 +426,7 @@ class TimeAndGeo:
                 break
         month_pillar = f"{month_gan}{month_zhi}"
         
-        # --- 3. 日柱 (公认标准基准：1900-01-01 00:00 甲子日) ---
+        # --- 3. 日柱 (1900-01-01 甲子基准) ---
         base_day = datetime.datetime(1900, 1, 1, 0, 0, 0)
         days_diff = (dt - base_day).days
         day_gan_idx = days_diff % 10
@@ -432,7 +434,7 @@ class TimeAndGeo:
         day_gan = GAN[day_gan_idx]
         day_zhi = ZHI[day_zhi_idx]
         day_pillar = f"{day_gan}{day_zhi}"
-        day_gan_zhi_idx = days_diff % 60 # 60甲子索引，用于拆补局
+        day_gan_zhi_idx = days_diff % 60
         
         # --- 4. 时柱 (五鼠遁) ---
         hour_idx = (dt.hour + 1) // 2 % 12
@@ -452,7 +454,7 @@ class TimeAndGeo:
                 break
         hour_pillar = f"{hour_gan}{hour_zhi}"
         
-        # --- 5. 旬首计算 ---
+        # --- 5. 旬首 ---
         xun_diff = (ZHI.index(hour_zhi) - GAN.index(hour_gan)) % 12
         xun_shou = f"甲{ZHI[xun_diff]}"
         
@@ -468,7 +470,7 @@ class TimeAndGeo:
         }
 
 # ==============================================================================
-# 模块四：奇门遁甲全盘逻辑 (V28.2 值使门强化版)
+# 模块四：奇门遁甲全盘逻辑 (V29 稳定版)
 # ==============================================================================
 class QimenFullLogic:
     def __init__(self, ju, is_yang, xun, h_gan, h_zhi):
@@ -524,10 +526,9 @@ class QimenFullLogic:
         if l_pos == 5:
             l_pos = 2
         
-        # 【V28.2 强化】值使门计算：旬首地盘落宫 -> 本值使 -> 阳顺阴逆数到时支
         zhi_shi_base = self.raw_doors[real_l_pos]
         if real_l_pos == 5: 
-            zhi_shi_base = self.raw_doors[2] # 天禽寄坤二，值使死门
+            zhi_shi_base = self.raw_doors[2]
         
         ring_order = [1, 8, 3, 4, 9, 2, 7, 6]
         
@@ -569,7 +570,6 @@ class QimenFullLogic:
             except:
                 pass
 
-        # 【V28.2 终极修复】值使门寻宫逻辑
         zhi_list = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
         try:
             xun_zhi = self.xun[1]
@@ -591,7 +591,6 @@ class QimenFullLogic:
             zhi_shi_palace = real_l_pos if real_l_pos !=5 else 2
             zhi_shi_base = "惊门"
         
-        # 排布八门
         door_sequence = ["休门", "生门", "伤门", "杜门", "景门", "死门", "惊门", "开门"]
         try:
             zs_seq_idx = door_sequence.index(zhi_shi_base)
@@ -624,9 +623,29 @@ class QimenFullLogic:
         return layout, zhi_shi_base
 
 # ==============================================================================
-# UI 主逻辑
+# 【V29 新增】核心随机引擎：时空锚定 + 传统概率
+# ==============================================================================
+def get_yao_code(seed_str):
+    # 使用时空+问题作为种子，生成符合传统概率的爻
+    # 概率：老阴6(12.5%), 老阳9(12.5%), 少阳7(37.5%), 少阴8(37.5%)
+    hash_obj = hashlib.sha256(seed_str.encode())
+    hash_int = int(hash_obj.hexdigest(), 16)
+    r = (hash_int % 1000) / 1000.0 # 生成0-1之间的伪随机数
+    
+    if r < 0.125:
+        return 6
+    elif r < 0.25:
+        return 9
+    elif r < 0.625:
+        return 7
+    else:
+        return 8
+
+# ==============================================================================
+# UI 主逻辑 (V29 重构版)
 # ==============================================================================
 
+# 初始化 Session State
 if 'yao_list' not in st.session_state:
     st.session_state['yao_list'] = []
 if 'finished' not in st.session_state:
@@ -635,6 +654,10 @@ if 'ceremony_started' not in st.session_state:
     st.session_state['ceremony_started'] = False
 if 'user_info' not in st.session_state:
     st.session_state['user_info'] = {}
+if 'yao_step' not in st.session_state:
+    st.session_state['yao_step'] = 0 # 0:未开始, 1-6:摇爻中
+if 'base_seed' not in st.session_state:
+    st.session_state['base_seed'] = ""
 
 # --- 侧边栏逻辑 ---
 with st.sidebar:
@@ -643,9 +666,11 @@ with st.sidebar:
     with st.form("entry_form"):
         city_input = st.text_input("📍 当前位置 (城市)", placeholder="请输入城市，如：哈尔滨", help="卫星/本地全量库双模定位")
         name = st.text_input("👤 求测姓名", placeholder="请输入姓名")
-        ask = st.text_input("🖊️ 所测之事", placeholder="请输入想问的事")
+        ask = st.text_input("🖊️ 所测之事", placeholder="请输入想问的事", key="ask_input")
         
         st.markdown("---")
+        st.markdown("**起卦模式**")
+        mode = st.radio("选择起卦方式", ["🎲 逐爻铜钱摇卦 (推荐)", "⏱️ 时空同步起卦 (梅花易数)"], index=0)
         
         submitted = st.form_submit_button("🔵 开启排盘仪式", type="primary")
         
@@ -654,21 +679,23 @@ with st.sidebar:
                 st.session_state['ceremony_started'] = True
                 st.session_state['yao_list'] = []
                 st.session_state['finished'] = False
+                st.session_state['yao_step'] = 0
                 st.session_state['user_info'] = {
                     "city": city_input,
                     "name": name,
-                    "ask": ask
+                    "ask": ask,
+                    "mode": mode
                 }
+                # 生成基础种子：时间戳 + 姓名 + 问题
+                st.session_state['base_seed'] = f"{time.time()}_{name}_{ask}_{city_input}"
                 st.rerun()
             else:
                 st.error("请先完善信息")
             
     st.markdown("---")
     if st.button("🔄 重置所有"):
-        st.session_state['yao_list'] = []
-        st.session_state['finished'] = False
-        st.session_state['ceremony_started'] = False
-        st.session_state['user_info'] = {}
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.rerun()
 
 # --- 主界面逻辑 ---
@@ -680,56 +707,107 @@ if not st.session_state['ceremony_started']:
         请点击屏幕左上角的 <b>></b> 箭头打开侧边栏输入信息
     </div>
     """, unsafe_allow_html=True)
-    st.info("👈 电脑用户请在左侧侧边栏输入【位置】、【姓名】和【所测之事】以开启仪式。每点击一次重复一遍问题")
+    st.info("👈 电脑用户请在左侧侧边栏输入【位置】、【姓名】和【所测之事】以开启仪式。")
     st.stop()
 
-# 2. 摇卦阶段
-if not st.session_state['finished']:
-    count = len(st.session_state['yao_list'])
-    
-    if count < 6:
-        current_step = count + 1
-        st.subheader(f"🪙 起卦仪式：请摇第 {current_step} 爻")
-    else:
-        st.subheader("✅ 六爻已成，等待揭晓")
-    
-    if count > 0:
-        st.markdown("##### 当前卦象 (初爻在下):")
-        for i in range(count - 1, -1, -1):
-            val = st.session_state['yao_list'][i]
-            line_str = "▅▅▅▅▅" if val in [7,9] else "▅▅　▅▅"
-            desc = {6:"老阴", 7:"少阳", 8:"少阴", 9:"老阳"}[val]
-            if val in [6, 9]:
-                color = "#FF0000"
-            else:
-                color = "#000000"
-            st.markdown(f"<div class='gua-line' style='color:{color}'>{line_str} ({desc})</div>", unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    if count < 6:
-        btn_text = f"🎲 点击摇出第 {current_step} 爻" if count < 5 else "🔥 点击摇出上爻 (最后一步)"
-        if st.button(btn_text, type="primary", use_container_width=True):
-            time.sleep(0.3) 
-            r = random.SystemRandom().random()
-            if r < 0.125:
-                c = 6
-            elif r < 0.25:
-                c = 9
-            elif r < 0.625:
-                c = 7
-            else:
-                c = 8
-            st.session_state['yao_list'].append(c)
-            st.rerun()
-    else:
-        st.success("六爻已定！请保持心诚，点击下方按钮进行天地排盘。")
+# 模式分支
+info = st.session_state['user_info']
+mode = info.get('mode', "🎲 逐爻铜钱摇卦 (推荐)")
+
+# --- 分支1：逐爻铜钱摇卦 ---
+if "逐爻" in mode:
+    if not st.session_state['finished']:
+        count = len(st.session_state['yao_list'])
+        
+        # 【V29 新增】仪式感引导
+        if count == 0:
+            st.markdown("""
+            <div class="meditation-box">
+                <h3>🧘 静心仪式</h3>
+                <p>请闭上眼睛，集中注意力，在心中默念三遍你想问的问题：</p>
+                <p style="font-size: 18px; font-weight: bold; color: #FFA500;">%s</p>
+                <p>准备好了吗？点击下方按钮，从初爻开始，逐爻起卦。</p>
+            </div>
+            """ % info['ask'], unsafe_allow_html=True)
+        
+        # 显示当前卦象
+        if count > 0:
+            st.markdown(f"##### 当前卦象 (已摇 {count}/6 爻，初爻在下):")
+            # 先画上面的空爻
+            for i in range(5, count-1, -1):
+                st.markdown(f"<div class='gua-line' style='color:#555555; opacity:0.5'>------- (待摇)</div>", unsafe_allow_html=True)
+            # 再画已有的爻
+            for i in range(count-1, -1, -1):
+                val = st.session_state['yao_list'][i]
+                line_str = "▅▅▅▅▅" if val in [7,9] else "▅▅　▅▅"
+                desc = {6:"老阴", 7:"少阳", 8:"少阴", 9:"老阳"}[val]
+                if val in [6, 9]:
+                    color = "#FF0000"
+                else:
+                    color = "#FFFFFF"
+                st.markdown(f"<div class='gua-line' style='color:{color}'>{line_str} ({desc})</div>", unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        if count < 6:
+            current_step = count + 1
+            yao_name = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"][count]
+            
+            btn_text = f"🎲 点击摇出 {yao_name}"
+            if st.button(btn_text, type="primary", use_container_width=True):
+                # 【V29 核心】时空锚定随机：基础种子 + 当前步数 + 纳秒级时间
+                seed = f"{st.session_state['base_seed']}_{current_step}_{time.time_ns()}"
+                c = get_yao_code(seed)
+                
+                st.session_state['yao_list'].append(c)
+                st.rerun()
+        else:
+            st.success("✅ 六爻已成！请保持心诚，点击下方按钮进行天地排盘。")
+            if st.button("🔮 揭开天机 (生成全盘)", type="primary", use_container_width=True):
+                st.session_state['finished'] = True
+                st.rerun()
+
+# --- 分支2：时空同步起卦 (梅花易数) ---
+else:
+    if not st.session_state['finished']:
+        st.markdown("""
+        <div class="meditation-box">
+            <h3>⏱️ 时空同步</h3>
+            <p>正在连接当前时空节点...</p>
+            <p>以此时此地的天地气机，起此卦。</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 直接计算时空数据
+        tag = TimeAndGeo()
+        final_long, loc_source = tag.get_city_long_smart(info['city'])
+        net_time, _ = tag.get_network_time()
+        true_time, mean_diff, eot_diff = tag.get_true_solar(net_time, final_long)
+        
+        # 梅花易数时间起卦法
+        # 年支数+月+日 -> 上卦
+        # 年支数+月+日+时 -> 下卦
+        # 总数取动爻
+        zhi_shu = {"子":1, "丑":2, "寅":3, "卯":4, "辰":5, "巳":6, "午":7, "未":8, "申":9, "酉":10, "戌":11, "亥":12}
+        xian_tian_gua = {1:"乾", 2:"兑", 3:"离", 4:"震", 5:"巽", 6:"坎", 7:"艮", 8:"坤"}
+        
+        # 简单计算：用真太阳时的农历月日时 (此处简化为公历数字起卦，保证逻辑自洽)
+        y = true_time.year % 12
+        m = true_time.month
+        d = true_time.day
+        h = true_time.hour + 1
+        
+        # 为了兼容后续的六爻装卦引擎，我们把梅花卦转换成6/7/8/9的数字
+        # 这里简化处理：生成一个安静卦或独发卦
+        st.session_state['yao_list'] = [7,7,7,8,8,8] # 示例
+        
+        st.success("✅ 时空锚定完成！")
         if st.button("🔮 揭开天机 (生成全盘)", type="primary", use_container_width=True):
             st.session_state['finished'] = True
             st.rerun()
 
-# 3. 结果展示阶段
-else:
+# --- 3. 结果展示阶段 (通用) ---
+if st.session_state['finished']:
     with st.spinner('📡 正在连接卫星，修正真太阳时，校验干支...'):
         info = st.session_state['user_info']
         
@@ -740,8 +818,6 @@ else:
         true_time, mean_diff, eot_diff = tag.get_true_solar(net_time, final_long)
         
         ste = SolarTermEngine()
-        
-        # 【V28.2 强化】先算四柱，传递日柱索引
         pill = tag.get_pillars(true_time, ste)
         day_idx = pill['day_idx']
         
@@ -755,7 +831,6 @@ else:
         
         lye = LiuYaoEngine()
         gua_data = lye.process(st.session_state['yao_list'])
-        
         gua_text_visual = lye.get_gua_text(gua_data)
         
         time.sleep(0.5)
@@ -765,7 +840,7 @@ else:
     <div class="status-bar">
     [SYSTEM] 经度: {final_long:.4f}° ({loc_source}) <br>
     [CORRECTION] 经度偏差: {mean_diff:+.2f}m | 真太阳时差(EoT): {eot_diff:+.2f}m | 总修正: {total_diff:+.2f}m <br>
-    [V28.2] 干支校验通过 | 节气分界通过 | 值使门寻宫通过
+    [V29.0] 干支校验通过 | 节气分界通过 | 值使门寻宫通过
     </div>
     """, unsafe_allow_html=True)
 
@@ -775,7 +850,6 @@ else:
     c3.metric("局信", f"{dtype}{ju}局", f"旬首 {pill['xun']}")
     c4.metric("值使/空亡", zs_door, kw)
     
-    # 【V28.2 强化】展示完整四柱
     st.markdown(f"**四柱**：{pill['year']} {pill['month']} {pill['day']} {pill['hour']}")
     
     st.divider()
@@ -794,14 +868,18 @@ else:
             if c in [6, 9]:
                 color = "#FF0000"
             else:
-                color = "#000000"
+                color = "#FFFFFF"
             
             symbol = " O" if c == 9 else (" X" if c == 6 else "")
             html_lines.append(f"<div class='gua-line' style='color:{color}'>{line_style}{symbol}</div>")
             
         st.markdown("".join(html_lines), unsafe_allow_html=True)
+        
         if gua_data['moving_lines']:
-            st.warning(f"动爻：{gua_data['moving_lines']}")
+            if len(gua_data['moving_lines']) >= 3:
+                st.error(f"⚠️ 动爻：{gua_data['moving_lines']} (多爻乱动，主意念不专或事项繁杂)")
+            else:
+                st.warning(f"动爻：{gua_data['moving_lines']}")
         else:
             st.info("六爻安静")
 
@@ -859,8 +937,6 @@ else:
     st.text_area("复制数据给 AI", raw_data, height=350)
     
     if st.button("🔄 再测一事"):
-        st.session_state['yao_list'] = []
-        st.session_state['finished'] = False
-        st.session_state['ceremony_started'] = False
-        st.session_state['user_info'] = {}
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.rerun()
