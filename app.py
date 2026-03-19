@@ -10,12 +10,17 @@ import email.utils
 import math
 
 # ==============================================================================
-# UI 层 (Streamlit) - V28.0
+# UI 层 (Streamlit) - V29.1 最终优化版
 # 1. 引入 st.form 解决输入不生效的问题
 # 2. 注入 JS 补丁修复安卓兼容性
 # 3. 代码完全解压，单行单写
+# 4. 修复奇门遁甲核心逻辑 BUG
+# 5. 优化「复制数据给 AI」文本输出格式
+# 6. 新增【空间面向】选择
+# 7. 新增【五行用事提示】
+# 8. 强化【断卦指导】
 # ==============================================================================
-st.set_page_config(page_title="赛博玄学 V28.0", layout="wide", page_icon="🧿")
+st.set_page_config(page_title="赛博玄学 V29.1", layout="wide", page_icon="🧿")
 
 # 注入安卓兼容补丁
 components.html("""
@@ -64,7 +69,7 @@ st.markdown("""
         color: #00FF00; 
         font-family: monospace; 
         margin-bottom: 20px; 
-        border: 1px solid #333; 
+        border: 1px solid #333;
     }
     .shake-btn { font-size: 24px !important; padding: 20px !important; width: 100%; }
     .gua-line { 
@@ -77,7 +82,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🧿 赛博玄学 V28.0")
+st.title("🧿 赛博玄学 V29.1 (最终优化版)")
 
 # ==============================================================================
 # 模块一：普朗克级天文算法引擎
@@ -90,6 +95,60 @@ class SolarTermEngine:
             "小暑", "大暑", "立秋", "处暑", "白露", "秋分", 
             "寒露", "霜降", "立冬", "小雪", "大雪", "冬至"
         ]
+        # 节气对应五行/时空特征模板
+        self.term_features = {
+            "小寒": "水旺之时，宜静不宜动，利于谋划",
+            "大寒": "水极转木，寒极生温，宜守正待时",
+            "立春": "木气初升，万物复苏，宜动中求进",
+            "雨水": "木火相生，雨露均沾，宜顺势而为",
+            "惊蛰": "雷动木旺，万物惊醒，宜主动出击",
+            "春分": "木气鼎盛，阴阳平衡，宜稳中求进",
+            "清明": "木火通明，气清景明，宜积极作为",
+            "谷雨": "土旺金相，雨生百谷，宜厚积薄发",
+            "立夏": "火气初升，万物繁茂，宜开拓进取",
+            "小满": "火土相生，小得盈满，宜稳步前行",
+            "芒种": "火旺至极，忙碌充实，宜把握时机",
+            "夏至": "阳极生阴，火气转土，宜静守心神",
+            "小暑": "土旺金相，暑气初升，宜劳逸结合",
+            "大暑": "土极转金，暑极生凉，宜以静制动",
+            "立秋": "金气初升，万物收敛，宜审时度势",
+            "处暑": "金水相生，暑气消退，宜收心养性",
+            "白露": "金气鼎盛，露凝而白，宜果断行事",
+            "秋分": "金气转水，阴阳平衡，宜权衡利弊",
+            "寒露": "水旺金相，露寒而冷，宜谨慎前行",
+            "霜降": "水极转木，霜降水涸，宜坚守本心",
+            "立冬": "水气初升，万物闭藏，宜休养生息",
+            "小雪": "水旺木相，雪落无声，宜默默积累",
+            "大雪": "水旺至极，雪盛冰封，宜厚积薄发",
+            "冬至": "阴极生阳，水极转火，宜静待转机"
+        }
+        # 五行用事提示（基于节气+阴阳遁）
+        self.wuxing_hints = {
+            "小寒": "水旺克火，宜补水抑火",
+            "大寒": "水旺木相，宜水木相生",
+            "立春": "木旺克土，宜补木疏土",
+            "雨水": "木火相生，宜动中求进",
+            "惊蛰": "雷动木旺，宜木火通明",
+            "春分": "木气鼎盛，宜阴阳平衡",
+            "清明": "木火通明，宜积极作为",
+            "谷雨": "土旺金相，宜厚积薄发",
+            "立夏": "火旺克金，宜补火抑金",
+            "小满": "火土相生，宜稳步前行",
+            "芒种": "火旺至极，宜把握时机",
+            "夏至": "阳极生阴，宜以静制动",
+            "小暑": "土旺克水，宜补土抑水",
+            "大暑": "土极转金，宜劳逸结合",
+            "立秋": "金旺克木，宜补金抑木",
+            "处暑": "金水相生，宜收心养性",
+            "白露": "金气鼎盛，宜果断行事",
+            "秋分": "金气转水，宜权衡利弊",
+            "寒露": "水旺金相，宜谨慎前行",
+            "霜降": "水极转木，宜坚守本心",
+            "立冬": "水旺克火，宜补水抑火",
+            "小雪": "水旺木相，宜默默积累",
+            "大雪": "水旺至极，宜厚积薄发",
+            "冬至": "阴极生阳，宜静待转机"
+        }
         
     def _julian_day(self, year, month, day, hour=12, minute=0, second=0, micro=0):
         if month <= 2:
@@ -116,7 +175,7 @@ class SolarTermEngine:
         C = term1 + term2 + term3
         return (L0 + C) % 360
 
-    def get_chai_bu_ju(self, dt):
+    def get_chai_bu_ju(self, dt, time_geo):
         jd = self._julian_day(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
         curr_long = self._calc_solar_long(jd)
         
@@ -134,9 +193,7 @@ class SolarTermEngine:
         yang_map = {"冬至": [1, 7, 4], "小寒": [2, 8, 5], "大寒": [3, 9, 6], "立春": [8, 5, 2], "雨水": [9, 6, 3], "惊蛰": [1, 7, 4], "春分": [3, 9, 6], "清明": [4, 1, 7], "谷雨": [5, 2, 8], "立夏": [4, 1, 7], "小满": [5, 2, 8], "芒种": [6, 3, 9]}
         yin_map = {"夏至": [9, 3, 6], "小暑": [8, 2, 5], "大暑": [7, 1, 4], "立秋": [2, 5, 8], "处暑": [1, 4, 7], "白露": [9, 3, 6], "秋分": [7, 1, 4], "寒露": [6, 9, 3], "霜降": [5, 8, 2], "立冬": [6, 9, 3], "小雪": [5, 8, 2], "大雪": [4, 7, 1]}
         
-        base = datetime.datetime(2000, 1, 1)
-        delta = (dt - base).days + 24
-        yuan_idx = (delta % 15) // 5 
+        yuan_idx = time_geo.get_yuan_idx(dt)
         yuan_name = ["上元", "中元", "下元"][yuan_idx]
         
         if dun_type == "阳遁":
@@ -144,7 +201,11 @@ class SolarTermEngine:
         else:
             ju = yin_map.get(term_name, [9, 3, 6])[yuan_idx]
             
-        return dun_type, ju, term_name, yuan_name, curr_long
+        # 获取时空特征和五行提示
+        feature = self.term_features.get(term_name, "五行流转，宜顺势而为")
+        wuxing_hint = self.wuxing_hints.get(term_name, "五行平衡，宜守正待时")
+            
+        return dun_type, ju, term_name, yuan_name, curr_long, feature, wuxing_hint
 
 # ==============================================================================
 # 模块二：六爻全库引擎 (完全解压，防止报错)
@@ -232,12 +293,12 @@ class LiuYaoEngine:
                 change_note = " (7)"
             elif val == 8:
                 change_note = " (8)"
-            lines_text += f" 第{i+1}爻: {line_char} {change_note}\n"
+            lines_text += f"  第{i+1}爻: {line_char} {change_note}\n"
         lines_text += "--------------------------------------------------"
         return lines_text
 
 # ==============================================================================
-# 模块三：时间和地理处理
+# 模块三：时间和地理处理 (修复真太阳时归一化 + 新增拆补法三元判断)
 # ==============================================================================
 class TimeAndGeo:
     def __init__(self):
@@ -259,11 +320,36 @@ class TimeAndGeo:
             "澳门": 113.54, "台北": 121.50, "高雄": 120.31
         }
 
+    def get_yuan_idx(self, dt):
+        pillars = self.get_pillars(dt)
+        day_gan_zhi = pillars['day']
+        current_gan = day_gan_zhi[0]
+        offset = 0
+
+        while current_gan not in ['甲', '己'] and offset < 10:
+            offset += 1
+            past_dt = dt - datetime.timedelta(days=offset)
+            pillars = self.get_pillars(past_dt)
+            day_gan_zhi = pillars['day']
+            current_gan = day_gan_zhi[0]
+
+        if offset >= 10:
+            return 0
+
+        zhi = day_gan_zhi[1]
+        if zhi in '子午卯酉':
+            return 0
+        elif zhi in '寅申巳亥':
+            return 1
+        elif zhi in '辰戌丑未':
+            return 2
+        return 0
+
     def get_city_long_smart(self, city_name):
         loc_source = "默认 (北京)"
         final_lon = 116.40
         try:
-            headers = {'User-Agent': 'CyberMetaphysics/28.0'}
+            headers = {'User-Agent': 'CyberMetaphysics/29.0'}
             encoded_city = urllib.parse.quote(city_name)
             url = f"https://nominatim.openstreetmap.org/search?q={encoded_city}&format=json&limit=1"
             req = urllib.request.Request(url, headers=headers)
@@ -299,12 +385,8 @@ class TimeAndGeo:
 
     def calculate_eot(self, dt):
         day_of_year = dt.timetuple().tm_yday
-        B = 360.0 * (day_of_year - 81) / 365.0
-        B_rad = math.radians(B)
-        term1 = 9.87 * math.sin(2 * B_rad)
-        term2 = 7.53 * math.cos(B_rad)
-        term3 = 1.5 * math.sin(B_rad)
-        eot_minutes = term1 - term2 - term3
+        B = math.radians((day_of_year - 81) * 360 / 365)
+        eot_minutes = 9.87 * math.sin(2*B) - 7.53 * math.cos(B) - 1.5 * math.sin(B)
         return eot_minutes
 
     def get_true_solar(self, dt, longitude):
@@ -312,6 +394,13 @@ class TimeAndGeo:
         eot_diff = self.calculate_eot(dt)
         total_diff = mean_diff + eot_diff
         true_solar_time = dt + datetime.timedelta(minutes=total_diff)
+        
+        true_solar_time = true_solar_time.replace(tzinfo=None)
+        if true_solar_time.hour < 0 or true_solar_time.hour >= 24:
+            day_offset = true_solar_time.hour // 24
+            true_solar_time = true_solar_time - datetime.timedelta(days=day_offset)
+            true_solar_time = true_solar_time.replace(hour=true_solar_time.hour % 24)
+        
         return true_solar_time, mean_diff, eot_diff
 
     def get_pillars(self, dt):
@@ -340,7 +429,7 @@ class TimeAndGeo:
         }
 
 # ==============================================================================
-# 模块四：奇门遁甲全盘逻辑 (转盘法，无 BUG)
+# 模块四：奇门遁甲全盘逻辑 (修复核心 BUG：八门索引、中宫处理、值使门)
 # ==============================================================================
 class QimenFullLogic:
     def __init__(self, ju, is_yang, xun, h_gan, h_zhi):
@@ -357,7 +446,7 @@ class QimenFullLogic:
         self.leader_stem = self.xun_map.get(xun, "戊")
         
         self.raw_stars = ["","天蓬","天芮","天冲","天辅","天禽","天心","天柱","天任","天英"]
-        self.raw_doors = ["","休门","死门","伤门","杜门","","开门","惊门","生门","景门"]
+        self.raw_doors = ["","休门","生门","伤门","杜门","景门","死门","惊门","开门",""]
 
     def get_kong_wang(self):
         kw_map = {
@@ -397,7 +486,10 @@ class QimenFullLogic:
         zs_pos_raw = real_l_pos
         if zs_pos_raw == 5:
             zs_pos_raw = 2
-        zhi_shi_door = self.raw_doors[zs_pos_raw]
+        if zs_pos_raw < 1 or zs_pos_raw >= len(self.raw_doors):
+            zhi_shi_door = "未知"
+        else:
+            zhi_shi_door = self.raw_doors[zs_pos_raw]
         
         ring_order = [1, 8, 3, 4, 9, 2, 7, 6]
         
@@ -426,8 +518,8 @@ class QimenFullLogic:
             stem_name = di_pan[original_pos]
             
             if original_pos == 2:
-                star_name = "天芮(禽)"
-                stem_name = f"{di_pan[2]}/{di_pan[5]}"
+                star_name = "天芮"
+                stem_name = f"{di_pan[2]}"
             
             try:
                 curr_ring_idx = ring_order.index(original_pos)
@@ -481,6 +573,10 @@ class QimenFullLogic:
             pass
         
         layout[5]["di"] = di_pan[5]
+        layout[5]["star"] = "天禽"
+        layout[5]["god"] = layout[2]["god"] if 2 in layout else ""
+        layout[5]["door"] = layout[2]["door"] if 2 in layout else ""
+        
         return layout, zhi_shi_door
 
 # ==============================================================================
@@ -493,23 +589,21 @@ if 'finished' not in st.session_state:
     st.session_state['finished'] = False
 if 'ceremony_started' not in st.session_state:
     st.session_state['ceremony_started'] = False
-# 用于存储表单数据
 if 'user_info' not in st.session_state:
     st.session_state['user_info'] = {}
 
-# --- 侧边栏逻辑 (改为 Form 提交) ---
 with st.sidebar:
     st.header("🔮 定场录入")
     
-    # 【改动】使用 st.form 包裹，强制提交，解决输入不生效问题
     with st.form("entry_form"):
         city_input = st.text_input("📍 当前位置 (城市)", placeholder="请输入城市，如：哈尔滨", help="卫星/本地全量库双模定位")
         name = st.text_input("👤 求测姓名", placeholder="请输入姓名")
         ask = st.text_input("🖊️ 所测之事", placeholder="请输入想问的事")
+        # 【新增】方向选择
+        direction = st.selectbox("面向方向（可选，用于奇门用神参考）", ["未知", "北", "东北", "东", "东南", "南", "西南", "西", "西北"])
         
         st.markdown("---")
         
-        # 提交按钮
         submitted = st.form_submit_button("🔵 开启排盘仪式", type="primary")
         
         if submitted:
@@ -517,11 +611,12 @@ with st.sidebar:
                 st.session_state['ceremony_started'] = True
                 st.session_state['yao_list'] = []
                 st.session_state['finished'] = False
-                # 保存数据
+                # 保存数据（包含方向）
                 st.session_state['user_info'] = {
                     "city": city_input,
                     "name": name,
-                    "ask": ask
+                    "ask": ask,
+                    "direction": direction
                 }
                 st.rerun()
             else:
@@ -535,8 +630,6 @@ with st.sidebar:
         st.session_state['user_info'] = {}
         st.rerun()
 
-# --- 主界面逻辑 ---
-
 if not st.session_state['ceremony_started']:
     st.markdown("""
     <div class="mobile-hint">
@@ -547,7 +640,6 @@ if not st.session_state['ceremony_started']:
     st.info("👈 电脑用户请在左侧侧边栏输入【位置】、【姓名】和【所测之事】以开启仪式。每点击一次重复一遍问题")
     st.stop()
 
-# 2. 摇卦阶段
 if not st.session_state['finished']:
     count = len(st.session_state['yao_list'])
     
@@ -592,10 +684,8 @@ if not st.session_state['finished']:
             st.session_state['finished'] = True
             st.rerun()
 
-# 3. 结果展示阶段
 else:
     with st.spinner('📡 正在连接卫星，修正真太阳时...'):
-        # 从 session 读取信息
         info = st.session_state['user_info']
         
         tag = TimeAndGeo()
@@ -605,7 +695,7 @@ else:
         true_time, mean_diff, eot_diff = tag.get_true_solar(net_time, final_long)
         
         ste = SolarTermEngine()
-        dtype, ju, term, yuan, slong = ste.get_chai_bu_ju(true_time)
+        dtype, ju, term, yuan, slong, feature, wuxing_hint = ste.get_chai_bu_ju(true_time, tag)
         is_yang = (dtype == "阳遁")
         
         pill = tag.get_pillars(true_time)
@@ -616,8 +706,6 @@ else:
         
         lye = LiuYaoEngine()
         gua_data = lye.process(st.session_state['yao_list'])
-        
-        # 获取竖排六爻文本
         gua_text_visual = lye.get_gua_text(gua_data)
         
         time.sleep(0.5)
@@ -667,7 +755,7 @@ else:
     with col_right:
         st.subheader("奇门九宫")
         grid_order = [[4, 9, 2], [3, 5, 7], [8, 1, 6]]
-        palace_names = {1:"坎水",8:"艮土",3:"震木",4:"巽木",9:"离火",2:"坤土",7:"兑金",6:"乾金",5:"中宫"}
+        palace_names = {1:"坎水",8:"艮土",3:"震木",4:"巽木",9:"离火",2:"坤土",7:"兑金",6:"乾金",5:"中宫(寄坤二)"}
         for row in grid_order:
             cols = st.columns(3)
             for idx, p_idx in enumerate(row):
@@ -676,10 +764,10 @@ else:
                     if p_idx == 5:
                         st.markdown(f"""
                         <div class="card">
-                            <div class="card-header">中宫</div>
-                            <div class="card-god">&nbsp;</div>
-                            <div class="card-star">&nbsp;</div>
-                            <div class="card-door">&nbsp;</div>
+                            <div class="card-header">{palace_names[p_idx]}</div>
+                            <div class="card-god">{d.get('god','')}</div>
+                            <div class="card-star">{d.get('star','')}</div>
+                            <div class="card-door">{d.get('door','')}</div>
                             <div class="card-stem">{d.get('di','')}</div>
                         </div>""", unsafe_allow_html=True)
                     else:
@@ -695,28 +783,41 @@ else:
 
     st.divider()
     
-    # 构造最终数据包
+    # ====================== 【最终优化】结构化 AI 断卦文本 ======================
     raw_data = f"""
 【问测】 {info['ask']}
-【定场】 {info['name']} @ {info['city']} (经度:{final_long})
-【时间】 {true_time.strftime('%Y-%m-%d %H:%M:%S')} (真太阳时 | 修正:{total_diff:.2f}m)
+【定场】 {info['name']} @ {info['city']} (经度:{final_long:.4f}°，时空已校准)
+【空间面向】：{info.get('direction', '未知')}（可参考值符/用神落宫权重）
+【时间】 {true_time.strftime('%Y-%m-%d %H:%M:%S')} (真太阳时 | 总修正:{total_diff:+.2f}分钟)
 【四柱】 {pill['year']} {pill['day']} {pill['hour']} (旬首:{pill['xun']})
-【奇门】 {term} {dtype}{ju}局 | 空亡:{kw} | 马星:{ma} | 值使:{zs_door}
+【奇门】 {term} {dtype}{ju}局 | {yuan} | 空亡:{kw} | 马星:{ma} | 值使:{zs_door}
+【时空特征】：{term}前后，{dtype}，{yuan}用事，利于{feature}
+【五行用事提示】：{wuxing_hint}
 
-【六爻】 本:{gua_data['ben_name']} 变:{gua_data['bian_name']} 动:{gua_data['moving_lines']}
+【六爻】 本卦：{gua_data['ben_name']} | 变卦：{gua_data['bian_name']} | 动爻：{gua_data['moving_lines']}
 {gua_text_visual}
 
-【布局】 (坎1->乾6):
+【布局】 (中宫前置，宫1坎→宫9离顺时针)：
+宫5: 中宫(5)地盘干: {layout[5]['di']} (寄坤二，神/门/星同2宫)
+宫1: {layout[1]['god']} {layout[1]['star']} {layout[1]['door']} [{layout[1]['tian']}/{layout[1]['di']}]
+宫2: {layout[2]['god']} {layout[2]['star']} {layout[2]['door']} [{layout[2]['tian']}/{layout[2]['di']}]
+宫3: {layout[3]['god']} {layout[3]['star']} {layout[3]['door']} [{layout[3]['tian']}/{layout[3]['di']}]
+宫4: {layout[4]['god']} {layout[4]['star']} {layout[4]['door']} [{layout[4]['tian']}/{layout[4]['di']}]
+宫6: {layout[6]['god']} {layout[6]['star']} {layout[6]['door']} [{layout[6]['tian']}/{layout[6]['di']}]
+宫7: {layout[7]['god']} {layout[7]['star']} {layout[7]['door']} [{layout[7]['tian']}/{layout[7]['di']}]
+宫8: {layout[8]['god']} {layout[8]['star']} {layout[8]['door']} [{layout[8]['tian']}/{layout[8]['di']}]
+宫9: {layout[9]['god']} {layout[9]['star']} {layout[9]['door']} [{layout[9]['tian']}/{layout[9]['di']}]
+
+【断卦指导】请严格结合以上时空+六爻+奇门全信息，综合分析所测之事：
+1. 结合用户所问之事【{info['ask']}】，优先用值符落宫对应六爻世爻/用神；
+2. 值使门吉凶断应期；
+3. 空亡/马星断成败/快慢；
+4. 九宫生克/格局看整体趋势；
+5. 给出详细、客观的断语，包括成败概率、时间节点、注意事项、具体策略建议。
 """
-    for p in [1,8,3,4,9,2,7,6]:
-        d = layout[p]
-        t = d['tian'] if d['tian'] else "?" 
-        raw_data += f"宫{p}: {d['god']} {d['star']} {d['door']} [{t}/{d['di']}]\n"
+    # ==========================================================================
         
-    raw_data += f" * 中宫(5)地盘干: {layout[5]['di']} (寄宫于坤二)\n"
-    raw_data += "================================================================================"
-        
-    st.text_area("复制数据给 AI", raw_data, height=350)
+    st.text_area("复制数据给 AI", raw_data, height=450)
     
     if st.button("🔄 再测一事"):
         st.session_state['yao_list'] = []
